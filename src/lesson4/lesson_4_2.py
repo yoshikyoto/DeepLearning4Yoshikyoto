@@ -22,7 +22,8 @@ def load_data(file_path):
     return tokenizer.texts_to_sequences(whole_texts), tokenizer
 
 
-model_filename = 'lesson4_2_model.h5'
+encoder_model_filename = 'lesson_4_2_encoder_model.h5'
+decoder_model_filename = 'lesson_4_2_decoder_model.h5'
 
 # 読み込み＆Tokenizerによる数値化
 x_train, tokenizer_en = load_data('data/train.en')
@@ -47,96 +48,103 @@ emb_dim = 256
 hid_dim = 256
 
 # 保存されたモデルがあれば読み込む
-loaded_model = load_model(model_filename)
+encoder_model = None
+decoder_model = None
+try:
+    encoder_model = load_model(encoder_model_filename)
+    decoder_model = load_model(decoder_model_filename)
+except IOError:
+    print("保存されたモデルが無いので学習から始めます")
 
-# 符号化器
-# Inputレイヤー（返り値としてテンソルを受け取る）
-encoder_inputs = Input(shape=(seqX_len,))
+if encoder_model is None or decoder_model is None:
+    # 符号化器
+    # Inputレイヤー（返り値としてテンソルを受け取る）
+    encoder_inputs = Input(shape=(seqX_len,))
 
-# モデルの層構成（手前の層の返り値テンソルを、次の接続したい層に別途引数として与える）
-# InputレイヤーとEmbeddingレイヤーを接続（+Embeddingレイヤーのインスタンス化）
-# shape: (seqX_len,)->(seqX_len, emb_dim)
-# mask_zero=True を指定することで、ゼロパディングした部分を無視するようにしている
-encoder_embedded = Embedding(en_vocab_size, emb_dim, mask_zero=True)(encoder_inputs)
+    # モデルの層構成（手前の層の返り値テンソルを、次の接続したい層に別途引数として与える）
+    # InputレイヤーとEmbeddingレイヤーを接続（+Embeddingレイヤーのインスタンス化）
+    # shape: (seqX_len,)->(seqX_len, emb_dim)
+    # mask_zero=True を指定することで、ゼロパディングした部分を無視するようにしている
+    encoder_embedded = Embedding(en_vocab_size, emb_dim, mask_zero=True)(encoder_inputs)
 
-# EmbeddingレイヤーとLSTMレイヤーを接続（+LSTMレイヤーのインスタンス化）
-# shape: (seqX_len, emb_dim)->(hid_dim, )
-# return_state=True を指定することで、 *encoder_states に隠れ状態を返す
-# `output = LSTM()(x)`
-# `output, state_h, state_c = LSTM(return_state=True)(x)`
-# 今回の場合、 output は使わず、 *encoder_states に state_h, state_c が入る
-_, *encoder_states = LSTM(hid_dim, return_state=True)(encoder_embedded)
+    # EmbeddingレイヤーとLSTMレイヤーを接続（+LSTMレイヤーのインスタンス化）
+    # shape: (seqX_len, emb_dim)->(hid_dim, )
+    # return_state=True を指定することで、 *encoder_states に隠れ状態を返す
+    # `output = LSTM()(x)`
+    # `output, state_h, state_c = LSTM(return_state=True)(x)`
+    # 今回の場合、 output は使わず、 *encoder_states に state_h, state_c が入る
+    _, *encoder_states = LSTM(hid_dim, return_state=True)(encoder_embedded)
 
-# 復号化器
-# Inputレイヤー（返り値としてテンソルを受け取る）
-decoder_inputs = Input(shape=(seqY_len,))
+    # 復号化器
+    # Inputレイヤー（返り値としてテンソルを受け取る）
+    decoder_inputs = Input(shape=(seqY_len,))
 
-# モデルの層構成（手前の層の返り値テンソルを、次の接続したい層に別途引数として与える）
-# InputレイヤーとEmbeddingレイヤーを接続
-# 後で参照したいので、レイヤー自体を変数化
-decoder_embedding = Embedding(ja_vocab_size, emb_dim)
-# shape: (seqY_len,)->(seqY_len, emb_dim)
-decoder_embedded = decoder_embedding(decoder_inputs)
+    # モデルの層構成（手前の層の返り値テンソルを、次の接続したい層に別途引数として与える）
+    # InputレイヤーとEmbeddingレイヤーを接続
+    # 後で参照したいので、レイヤー自体を変数化
+    decoder_embedding = Embedding(ja_vocab_size, emb_dim)
+    # shape: (seqY_len,)->(seqY_len, emb_dim)
+    decoder_embedded = decoder_embedding(decoder_inputs)
 
-# EmbeddingレイヤーとLSTMレイヤーを接続（encoder_statesを初期状態として指定）
-# 後で参照したいので、レイヤー自体を変数化
-decoder_lstm = LSTM(hid_dim, return_sequences=True, return_state=True)
-# shape: (seqY_len, emb_dim)->(seqY_len, hid_dim)
-decoder_outputs, _, _ = decoder_lstm(decoder_embedded, initial_state=encoder_states)
+    # EmbeddingレイヤーとLSTMレイヤーを接続（encoder_statesを初期状態として指定）
+    # 後で参照したいので、レイヤー自体を変数化
+    decoder_lstm = LSTM(hid_dim, return_sequences=True, return_state=True)
+    # shape: (seqY_len, emb_dim)->(seqY_len, hid_dim)
+    decoder_outputs, _, _ = decoder_lstm(decoder_embedded, initial_state=encoder_states)
 
-# LSTMレイヤーとDenseレイヤーを接続
-# 後で参照したいので、レイヤー自体を変数化
-decoder_dense = Dense(ja_vocab_size, activation='softmax')
-# shape: (seqY_len, hid_dim)->(seqY_len, ja_vocab_size)
-decoder_outputs = decoder_dense(decoder_outputs)
+    # LSTMレイヤーとDenseレイヤーを接続
+    # 後で参照したいので、レイヤー自体を変数化
+    decoder_dense = Dense(ja_vocab_size, activation='softmax')
+    # shape: (seqY_len, hid_dim)->(seqY_len, ja_vocab_size)
+    decoder_outputs = decoder_dense(decoder_outputs)
 
-# モデル構築（入力は符号化器＆復号化器、出力は復号化器のみ）
-model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
-model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
-# 今回は、sparse_categorical_crossentropy（正解ラベルとしてone_hot表現のベクトルでなく数値を受け取るcategorical_crossentropy）を使用
+    # モデル構築（入力は符号化器＆復号化器、出力は復号化器のみ）
+    model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
+    model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
+    # 今回は、sparse_categorical_crossentropy（正解ラベルとしてone_hot表現のベクトルでなく数値を受け取るcategorical_crossentropy）を使用
 
+    # モデルの学習は、教師データとしては1つ先の単語を示すデータにする: train_target
+    train_target = np.hstack((y_train[:, 1:], np.zeros((len(y_train),1), dtype=np.int32)))
 
-# モデルの学習は、教師データとしては1つ先の単語を示すデータにする: train_target
-train_target = np.hstack((y_train[:, 1:], np.zeros((len(y_train),1), dtype=np.int32)))
+    # 学習する
+    model.fit(
+        [x_train, y_train],
+        np.expand_dims(train_target, -1),
+        batch_size=128,
+        epochs=15,
+        verbose=2,
+        validation_split=0.2
+    )
 
-# 学習する
-model.fit(
-    [x_train, y_train],
-    np.expand_dims(train_target, -1),
-    batch_size=128,
-    epochs=15,
-    verbose=2,
-    validation_split=0.2
-)
+    # 今度は、学習したモデルを使って、系列を生成する
+    # 学習したモデルは次の単語を予測するモデルなので、
+    # 文章を生成するためのモデルを作る必要がある
 
-model.save(model_filename)
+    # サンプリング用（生成用）のモデルを作成
 
+    # 符号化器（学習時と同じ構成、学習したレイヤーを利用）
+    encoder_model = Model(encoder_inputs, encoder_states)
 
-# 今度は、学習したモデルを使って、系列を生成する
-# 学習したモデルは次の単語を予測するモデルなので、
-# 文章を生成するためのモデルを作る必要がある
+    # 復号化器
+    # decorder_lstmの初期状態指定用(h_t, c_t)
+    decoder_states_inputs = [Input(shape=(hid_dim,)), Input(shape=(hid_dim,))]
 
-# サンプリング用（生成用）のモデルを作成
+    decoder_inputs = Input(shape=(1,))
 
-# 符号化器（学習時と同じ構成、学習したレイヤーを利用）
-encoder_model = Model(encoder_inputs, encoder_states)
+    # 学習済みEmbeddingレイヤーを利用
+    decoder_embedded = decoder_embedding(decoder_inputs)
 
-# 復号化器
-# decorder_lstmの初期状態指定用(h_t, c_t)
-decoder_states_inputs = [Input(shape=(hid_dim,)), Input(shape=(hid_dim,))]
+    # 学習済みLSTMレイヤーを利用
+    decoder_outputs, *decoder_states = decoder_lstm(decoder_embedded, initial_state=decoder_states_inputs)
 
-decoder_inputs = Input(shape=(1,))
+    # 学習済みDenseレイヤーを利用
+    decoder_outputs = decoder_dense(decoder_outputs)
 
-# 学習済みEmbeddingレイヤーを利用
-decoder_embedded = decoder_embedding(decoder_inputs)
+    decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
 
-# 学習済みLSTMレイヤーを利用
-decoder_outputs, *decoder_states = decoder_lstm(decoder_embedded, initial_state=decoder_states_inputs)
-
-# 学習済みDenseレイヤーを利用
-decoder_outputs = decoder_dense(decoder_outputs)
-
-decoder_model = Model([decoder_inputs] + decoder_states_inputs, [decoder_outputs] + decoder_states)
+    # 作ったモデルを保存
+    encoder_model.save(encoder_model_filename)
+    decoder_model.save(decoder_model_filename)
 
 
 def decode_sequence(input_seq, bos_eos, max_output_length = 1000):
