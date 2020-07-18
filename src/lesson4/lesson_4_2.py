@@ -53,9 +53,11 @@ decoder_model = None
 try:
     encoder_model = load_model(encoder_model_filename)
     decoder_model = load_model(decoder_model_filename)
+    print("保存されたモデルを使います")
 except IOError:
     print("保存されたモデルが無いので学習から始めます")
 
+# どちらかが読み込めなかった場合は学習をやりなおす
 if encoder_model is None or decoder_model is None:
     # 符号化器
     # Inputレイヤー（返り値としてテンソルを受け取る）
