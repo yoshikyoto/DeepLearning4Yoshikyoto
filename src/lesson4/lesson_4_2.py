@@ -1,7 +1,7 @@
 from tensorflow.keras.preprocessing.text import Tokenizer
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import Input, Embedding, Dense, LSTM
 import numpy as np
 
@@ -22,6 +22,8 @@ def load_data(file_path):
     return tokenizer.texts_to_sequences(whole_texts), tokenizer
 
 
+model_filename = 'lesson4_2_model.h5'
+
 # 読み込み＆Tokenizerによる数値化
 x_train, tokenizer_en = load_data('data/train.en')
 y_train, tokenizer_ja = load_data('data/train.ja')
@@ -29,6 +31,7 @@ y_train, tokenizer_ja = load_data('data/train.ja')
 en_vocab_size = len(tokenizer_en.word_index) + 1
 ja_vocab_size = len(tokenizer_ja.word_index) + 1
 
+# データを学習用とテスト用に分ける
 x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.02, random_state=42)
 
 # パディング
@@ -39,9 +42,12 @@ y_train = pad_sequences(y_train, padding='post')
 seqX_len = len(x_train[0])
 seqY_len = len(y_train[0])
 
-# 単語の one-hot表現なら変換する embed表現の次元数
+# 単語の one-hot表現から変換する embed表現の次元数
 emb_dim = 256
 hid_dim = 256
+
+# 保存されたモデルがあれば読み込む
+loaded_model = load_model(model_filename)
 
 # 符号化器
 # Inputレイヤー（返り値としてテンソルを受け取る）
@@ -102,6 +108,8 @@ model.fit(
     verbose=2,
     validation_split=0.2
 )
+
+model.save(model_filename)
 
 
 # 今度は、学習したモデルを使って、系列を生成する
