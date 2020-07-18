@@ -209,6 +209,8 @@ text_no = 0
 input_seq = pad_sequences([x_test[text_no]], seqX_len, padding='post')
 bos_eos = tokenizer_ja.texts_to_sequences(["<s>", "</s>"])
 
+output_seq, attention_seq = decode_sequence(input_seq, bos_eos)
+
 print('元の文:', ' '.join([detokenizer_en[i] for i in x_test[text_no]]))
-print('生成文:', ' '.join([detokenizer_ja[i] for i in decode_sequence(input_seq, bos_eos)]))
+print('生成文:', ' '.join([detokenizer_ja[i] for i in output_seq]))
 print('正解文:', ' '.join([detokenizer_ja[i] for i in y_test[text_no]]))
