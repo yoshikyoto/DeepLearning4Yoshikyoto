@@ -205,12 +205,16 @@ def decode_sequence(input_seq, bos_eos, max_output_length=1000):
 detokenizer_en = dict(map(reversed, tokenizer_en.word_index.items()))
 detokenizer_ja = dict(map(reversed, tokenizer_ja.word_index.items()))
 
-text_no = 0
-input_seq = pad_sequences([x_test[text_no]], seqX_len, padding='post')
-bos_eos = tokenizer_ja.texts_to_sequences(["<s>", "</s>"])
+# x_test の中身は1000個入っていて、全部やると大変なのでちょっとだけ試す
+x_test_length = 5
+for text_no in range(x_test_length):
+    input_seq = pad_sequences([x_test[text_no]], seqX_len, padding='post')
+    bos_eos = tokenizer_ja.texts_to_sequences(["<s>", "</s>"])
 
-output_seq, attention_seq = decode_sequence(input_seq, bos_eos)
+    output_seq, attention_seq = decode_sequence(input_seq, bos_eos)
 
-print('元の文:', ' '.join([detokenizer_en[i] for i in x_test[text_no]]))
-print('生成文:', ' '.join([detokenizer_ja[i] for i in output_seq]))
-print('正解文:', ' '.join([detokenizer_ja[i] for i in y_test[text_no]]))
+    print("文章" + str(text_no + 1) + "/" + str(len(x_test)))
+    print('元の文:', ' '.join([detokenizer_en[i] for i in x_test[text_no]]))
+    print('生成文:', ' '.join([detokenizer_ja[i] for i in output_seq]))
+    print('正解文:', ' '.join([detokenizer_ja[i] for i in y_test[text_no]]))
+    print()
